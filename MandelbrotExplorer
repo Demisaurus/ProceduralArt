@@ -1,0 +1,186 @@
+using UnityEngine;
+using System.Collections;
+using UnityEngine.Audio;
+using System.Collections.Generic;
+using UnityEngine.UI;
+
+public class Explorer : MonoBehaviour
+
+//\///\\\///\\\///\\\///\\\///\\\///\\\///\\\
+//////// MANDELBROT FRACTAL EXPLORER \\\\\\\\\
+///\\\///\\\///\\\///\\\///\\\///\\\///\\\///\
+{
+    public Material mat;
+    private Vector2 pos;          ////// This is necessary to have public when defining a route in Play Mode
+    public float scale, angle;
+
+    private Vector2 smoothPos;
+    private float smoothScale, smoothAngle;
+
+    private float frames;
+
+    public Vector2[] arPos;
+    public float[] arScale;
+    public float[] arAngle;
+    public float[] arFrames;
+
+    private int currentPos;
+    private int currentScale;
+    private int currentAngle;
+    private int currentFrames;
+
+    public AudioSource[] audioSources;
+    private int currentSource;
+    private AudioSource song;
+
+    public GameObject blackOutSquare;
+
+
+    private void Start()
+    {
+        currentPos = 0;
+        currentScale = 0;
+        currentAngle = 0;
+        currentFrames = 0;
+        pos = arPos[currentPos];
+        scale = arScale[currentScale];
+        angle = arAngle[currentAngle];
+        smoothPos = arPos[currentPos];
+        smoothScale = arScale[currentScale];
+        smoothAngle = arAngle[currentAngle];
+        frames = arFrames[currentFrames];
+
+        currentSource = Random.Range(0, audioSources.Length);   ///// Chooses randomly between songs in list
+        song = audioSources[currentSource];
+        audioSources[currentSource].Play();   
+    }
+
+    private void UpdateShader()
+    {
+        smoothPos = Vector2.Lerp(smoothPos, pos, .03f);
+        smoothScale = Mathf.Lerp(smoothScale, scale, .03f);
+        smoothAngle = Mathf.LerpAngle(smoothAngle, angle, .03f);
+
+        float aspect = (float)Screen.width / (float)Screen.height;
+
+        float scaleX = smoothScale;
+        float scaleY = smoothScale;
+
+        if (aspect > 1f)
+            scaleY /= aspect;
+        else
+            scaleX *= aspect;
+
+        mat.SetVector("_Area", new Vector4(smoothPos.x, smoothPos.y, scaleX, scaleY));
+        mat.SetFloat("_Angle", smoothAngle);
+    }
+
+    private void AutoMovement()    
+    {
+
+        //if (Time.frameCount % 120 == 0)   /////  Dependant on framerate
+        if (Time.time - frames == 0)        /////  Constant, more control
+        {
+            currentPos++;
+            currentFrames++;
+            pos = arPos[currentPos];
+            frames = arFrames[currentFrames];
+        }
+
+        if (currentPos <= 3 || currentPos == 6 || currentPos == 9 || currentPos == 12 || currentPos == 14)
+        {
+            scale *= .99f;
+            angle -= .01f;
+        }
+        else
+        {
+            scale *= 1.01f;
+            angle += .01f;
+        }
+
+
+        //Debug.Log("current pos: " + currentPos + " current scale: " + currentScale + " current angle: " + currentAngle + " current frames: " + currentFrames);
+    }
+
+    private void Movement()    ////// This is necessary to have on when defining a route in Play Mode
+    {
+        if (Input.GetKey(KeyCode.UpArrow))
+            scale *= .99f;
+        if (Input.GetKey(KeyCode.DownArrow))
+            scale *= 1.01f;
+
+        if (Input.GetKey(KeyCode.Q))
+            angle -= .01f;
+        if (Input.GetKey(KeyCode.E))
+            angle += .01f;
+
+        Vector2 dir = new Vector2(.01f * scale, 0);
+        float s = Mathf.Sin(angle);
+        float c = Mathf.Cos(angle);
+        dir = new Vector2(dir.x * c, dir.x * s);
+
+        if (Input.GetKey(KeyCode.A))
+            pos -= dir;
+        if (Input.GetKey(KeyCode.D))
+            pos += dir;
+
+        dir = new Vector2(-dir.y, dir.x);
+        if (Input.GetKey(KeyCode.S))
+            pos -= dir;
+        if (Input.GetKey(KeyCode.W))
+            pos += dir;
+    }
+
+    void FixedUpdate()
+    {
+        //Movement();      ////// This is necessary to have on when defining a route in Play Mode
+        UpdateShader();
+
+        if (currentPos < this.arPos.Length - 1)
+        {
+            AutoMovement();
+        }
+        else
+        {
+            scale = 4f;
+            angle = 0f;
+            StartCoroutine(FadeOut());
+            StartCoroutine(StopGame());
+        }
+    }
+
+    private IEnumerator FadeOut()
+    {
+        float speed = 0.00005f;
+        while (song.volume <= 1)
+        {
+            song.volume -= speed;
+            StartCoroutine(FadeBlackOut());
+            yield return new WaitForSeconds(0.1f);
+        }
+    }
+
+    public IEnumerator FadeBlackOut(bool blackOut = true, float fadeSpeed = 0.0022f)
+    {
+        Color objectColor = blackOutSquare.GetComponent<Image>().color;
+        float fadeAmount;
+
+        if (blackOut)
+        {
+            while (blackOutSquare.GetComponent<Image>().color.a <= 1)
+            {
+                fadeAmount = objectColor.a + (fadeSpeed * Time.deltaTime);
+
+                objectColor = new Color(objectColor.r, objectColor.g, objectColor.b, fadeAmount);
+                blackOutSquare.GetComponent<Image>().color = objectColor;
+                yield return null;
+            }
+        }
+    }
+    private IEnumerator StopGame()
+    {
+        yield return new WaitForSeconds(11);
+        Debug.Log("Bye bye");
+        Application.Quit();
+    }
+}
